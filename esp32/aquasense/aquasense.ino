@@ -14,6 +14,9 @@ Adafruit_AHTX0 aht;
 // Sensor de humedad capacitivo
 #define MOISTURE_PIN 35
 
+// ID de la ESP32 (cámbialo si tienes varias placas)
+const char* DEVICE_ID = "ESP32-01";
+
 const int MOISTURE_AIR_VALUE   = 4095;
 const int MOISTURE_WATER_VALUE = 1500;
 
@@ -30,6 +33,7 @@ void setup() {
 
   pinMode(MOISTURE_PIN, INPUT);
 
+  // Nombre Bluetooth de la ESP32
   if (!SerialBT.begin("ESP32-Sensors")) {
     Serial.println("Error inicializando Bluetooth SPP");
   }
@@ -48,20 +52,21 @@ void loop() {
   int rawMoisture = analogRead(MOISTURE_PIN);
   float moisturePercent = mapToPercent(
     rawMoisture,
-    MOISTURE_AIR_VALUE, 
+    MOISTURE_AIR_VALUE,
     MOISTURE_WATER_VALUE
   );
 
   unsigned long ms = millis();
 
   String payload = "{";
+  payload += "\"id\":\"" + String(DEVICE_ID) + "\",";         // <-- NUEVO CAMPO ID
   payload += "\"timestamp\":" + String(ms) + ",";
   payload += "\"temperature\":" + String(temp.temperature, 2) + ",";
   payload += "\"moisture\":" + String(moisturePercent, 1);
   payload += "}\n";
 
-  Serial.println(payload);
-  SerialBT.print(payload);
+  Serial.println(payload);   // Para depuración por USB
+  SerialBT.print(payload);   // Envío por Bluetooth
 
   delay(2000);
 }
