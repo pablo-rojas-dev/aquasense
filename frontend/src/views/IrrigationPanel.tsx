@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import type {
   DeviceWithLastReading,
   IrrigationStatus,
@@ -527,12 +527,76 @@ interface MapViewProps {
 }
 
 const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [hasInternet, setHasInternet] = useState(true);
+
+  // Centro del mapa (lat, lng) y zoom de Google Maps
+  const [center, setCenter] = useState<{ lat: number; lng: number }>(() => {
+    if (zonesWithStatus.length === 0) {
+      return { lat: 0, lng: 0 };
+    }
+    const latitudes = zonesWithStatus.map((z) => z.zone.latitude);
+    const longitudes = zonesWithStatus.map((z) => z.zone.longitude);
+
+    const minLat = Math.min(...latitudes);
+    const maxLat = Math.max(...latitudes);
+    const minLng = Math.min(...longitudes);
+    const maxLng = Math.max(...longitudes);
+
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+
+    return { lat: centerLat, lng: centerLng };
+  });
+
+  const [zoom, setZoom] = useState<number>(() => {
+    if (zonesWithStatus.length === 0) return 13;
+
+    const latitudes = zonesWithStatus.map((z) => z.zone.latitude);
+    const longitudes = zonesWithStatus.map((z) => z.zone.longitude);
+
+    const minLat = Math.min(...latitudes);
+    const maxLat = Math.max(...latitudes);
+    const minLng = Math.min(...longitudes);
+    const maxLng = Math.max(...longitudes);
+
+    const latRange = maxLat - minLat || 1;
+    const lngRange = maxLng - minLng || 1;
+    const maxRange = Math.max(latRange, lngRange);
+
+    let initialZoom = 16;
+    if (maxRange > 1) initialZoom = 10;
+    else if (maxRange > 0.1) initialZoom = 13;
+
+    return initialZoom;
+  });
+
+  // Rango visible aproximado en grados (sirve para traducir píxeles -> lat/lng)
+  const [span, setSpan] = useState<{ latSpan: number; lngSpan: number }>(() => {
+    if (zonesWithStatus.length === 0) return { latSpan: 0.1, lngSpan: 0.1 };
+
+    const latitudes = zonesWithStatus.map((z) => z.zone.latitude);
+    const longitudes = zonesWithStatus.map((z) => z.zone.longitude);
+
+    const minLat = Math.min(...latitudes);
+    const maxLat = Math.max(...latitudes);
+    const minLng = Math.min(...longitudes);
+    const maxLng = Math.max(...longitudes);
+
+    const latRange = maxLat - minLat || 0.1;
+    const lngRange = maxLng - minLng || 0.1;
+
+    return { latSpan: latRange, lngSpan: lngRange };
+  });
+
+  // Panning
   const [isPanning, setIsPanning] = useState(false);
   const [lastPoint, setLastPoint] = useState<{ x: number; y: number } | null>(
     null
   );
-  const [hasInternet, setHasInternet] = useState(true);
+
+  // Tamaño del contenedor para convertir pixeles a grados
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const [containerSize, setContainerSize] = useState({ width: 1, height: 1 });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -549,42 +613,53 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
     };
   }, []);
 
+  useEffect(() => {
+    const updateSize = () => {
+      if (!mapRef.current) return;
+      const rect = mapRef.current.getBoundingClientRect();
+      setContainerSize({ width: rect.width, height: rect.height });
+    };
+
+    updateSize();
+    window.addEventListener("resize", updateSize);
+
+    return () => {
+      window.removeEventListener("resize", updateSize);
+    };
+  }, []);
+
+  const handleZoomIn = () => {
+    setZoom((prev) => Math.min(prev + 1, 20));
+    setSpan((prev) => ({
+      latSpan: prev.latSpan / 1.5,
+      lngSpan: prev.lngSpan / 1.5,
+    }));
+  };
+
+  const handleZoomOut = () => {
+    setZoom((prev) => Math.max(prev - 1, 1));
+    setSpan((prev) => ({
+      latSpan: prev.latSpan * 1.5,
+      lngSpan: prev.lngSpan * 1.5,
+    }));
+  };
+
   const mapUrl = useMemo(() => {
     if (!hasInternet || zonesWithStatus.length === 0) return null;
-
-    const latitudes = zonesWithStatus.map((z) => z.zone.latitude);
-    const longitudes = zonesWithStatus.map((z) => z.zone.longitude);
-
-    const minLat = Math.min(...latitudes);
-    const maxLat = Math.max(...latitudes);
-    const minLng = Math.min(...longitudes);
-    const maxLng = Math.max(...longitudes);
-
-    const latRange = maxLat - minLat || 1;
-    const lngRange = maxLng - minLng || 1;
-    const centerLat = (minLat + maxLat) / 2;
-    const centerLng = (minLng + maxLng) / 2;
-    const maxRange = Math.max(latRange, lngRange);
-
-    let zoom = 16;
-    if (maxRange > 1) zoom = 10;
-    else if (maxRange > 0.1) zoom = 13;
 
     const size = "1080x1920";
 
     const keyParam = GOOGLE_STATIC_MAPS_API_KEY
       ? `&key=${GOOGLE_STATIC_MAPS_API_KEY}`
       : "";
-    
+
     const styleParams =
       "&maptype=roadmap" +
-      // Nada de labels (calles, nombres, etc.)
       "&style=feature:all|element:labels|visibility:off" +
-      // puntos de interés
       "&style=feature:poi|visibility:off";
 
-    return `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=${size}${styleParams}${keyParam}`;
-  }, [hasInternet, zonesWithStatus]);
+    return `https://maps.googleapis.com/maps/api/staticmap?center=${center.lat},${center.lng}&zoom=${zoom}&size=${size}${styleParams}${keyParam}`;
+  }, [hasInternet, zonesWithStatus, center, zoom]);
 
   if (zonesWithStatus.length === 0) {
     return (
@@ -596,23 +671,19 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
     );
   }
 
-  const latitudes = zonesWithStatus.map((z) => z.zone.latitude);
-  const longitudes = zonesWithStatus.map((z) => z.zone.longitude);
-
-  const minLat = Math.min(...latitudes);
-  const maxLat = Math.max(...latitudes);
-  const minLng = Math.min(...longitudes);
-  const maxLng = Math.max(...longitudes);
-
-  const latRange = maxLat - minLat || 1;
-  const lngRange = maxLng - minLng || 1;
-
-  const padding = 0.2;
+  // Proyección simplificada usando el centro y el span actual
   const project = (lat: number, lng: number) => {
-    const xNorm = (lng - minLng) / lngRange;
-    const yNorm = (lat - minLat) / latRange;
-    const x = (padding + xNorm * (1 - 2 * padding)) * 100;
-    const y = (1 - (padding + yNorm * (1 - 2 * padding))) * 100;
+    const { latSpan, lngSpan } = span;
+    const minLat = center.lat - latSpan / 2;
+    const maxLat = center.lat + latSpan / 2;
+    const minLng = center.lng - lngSpan / 2;
+    const maxLng = center.lng + lngSpan / 2;
+
+    const xNorm = (lng - minLng) / (maxLng - minLng);
+    const yNorm = (lat - minLat) / (maxLat - minLat);
+
+    const x = xNorm * 100;
+    const y = (1 - yNorm) * 100;
     return { x, y };
   };
 
@@ -621,12 +692,14 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Mapa de zonas</CardTitle>
         <CardDescription className="text-xs">
-          Arrastra el mapa para navegar. Si no hay internet se mostrará sin mapa.
+          Arrastra el mapa para navegar y usa el zoom para acercar/alejar. Si
+          no hay internet se mostrará sin mapa.
         </CardDescription>
       </CardHeader>
 
       <CardContent>
         <div
+          ref={mapRef}
           className="relative w-full h-[420px] bg-muted rounded-lg overflow-hidden border border-border cursor-grab active:cursor-grabbing"
           onMouseDown={(e) => {
             setIsPanning(true);
@@ -636,8 +709,22 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
             if (!isPanning || !lastPoint) return;
             const dx = e.clientX - lastPoint.x;
             const dy = e.clientY - lastPoint.y;
-            setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+
             setLastPoint({ x: e.clientX, y: e.clientY });
+
+            // Convertir desplazamiento en píxeles a desplazamiento en lat/lng
+            const { width, height } = containerSize;
+            const { latSpan, lngSpan } = span;
+
+            if (!width || !height) return;
+
+            const deltaLng = (-dx / width) * lngSpan;
+            const deltaLat = (dy / height) * latSpan;
+
+            setCenter((prev) => ({
+              lat: prev.lat + deltaLat,
+              lng: prev.lng + deltaLng,
+            }));
           }}
           onMouseUp={() => {
             setIsPanning(false);
@@ -647,11 +734,38 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
             setIsPanning(false);
             setLastPoint(null);
           }}
+          onWheel={(e) => {
+            e.preventDefault();
+            if (e.deltaY < 0) {
+              handleZoomIn();
+            } else if (e.deltaY > 0) {
+              handleZoomOut();
+            }
+          }}
         >
+          {/* Controles de zoom */}
+          <div className="absolute right-2 top-2 z-10 flex flex-col gap-2">
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              onClick={handleZoomIn}
+            >
+              +
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              onClick={handleZoomOut}
+            >
+              −
+            </Button>
+          </div>
+
           <div
             className="absolute inset-0"
             style={{
-              transform: `translate(${pan.x}px, ${pan.y}px)`,
               backgroundImage: mapUrl ? `url(${mapUrl})` : undefined,
               backgroundSize: "cover",
               backgroundPosition: "center",
@@ -691,7 +805,10 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
 
         <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2 md:grid-cols-4">
           <LegendItem color="bg-red-500" label="Seco" />
-          <LegendItem color="bg-yellow-500" label="Riego (óptimo para regar)" />
+          <LegendItem
+            color="bg-yellow-500"
+            label="Riego (óptimo para regar)"
+          />
           <LegendItem color="bg-blue-500" label="Rango ideal" />
           <LegendItem color="bg-purple-500" label="Exceso de humedad" />
         </div>
