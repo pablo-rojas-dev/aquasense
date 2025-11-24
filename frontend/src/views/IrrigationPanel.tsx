@@ -108,6 +108,9 @@ const CROP_LABEL: Record<CropType, string> = {
   frijol: "Frijol",
 };
 
+const GOOGLE_STATIC_MAPS_API_KEY =
+  import.meta.env.VITE_GOOGLE_STATIC_MAPS_API_KEY || "";
+
 const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
   apiBaseUrl,
   zones,
@@ -524,6 +527,65 @@ interface MapViewProps {
 }
 
 const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [lastPoint, setLastPoint] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [hasInternet, setHasInternet] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const updateStatus = () => setHasInternet(navigator.onLine);
+    updateStatus();
+
+    window.addEventListener("online", updateStatus);
+    window.addEventListener("offline", updateStatus);
+
+    return () => {
+      window.removeEventListener("online", updateStatus);
+      window.removeEventListener("offline", updateStatus);
+    };
+  }, []);
+
+  const mapUrl = useMemo(() => {
+    if (!hasInternet || zonesWithStatus.length === 0) return null;
+
+    const latitudes = zonesWithStatus.map((z) => z.zone.latitude);
+    const longitudes = zonesWithStatus.map((z) => z.zone.longitude);
+
+    const minLat = Math.min(...latitudes);
+    const maxLat = Math.max(...latitudes);
+    const minLng = Math.min(...longitudes);
+    const maxLng = Math.max(...longitudes);
+
+    const latRange = maxLat - minLat || 1;
+    const lngRange = maxLng - minLng || 1;
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+    const maxRange = Math.max(latRange, lngRange);
+
+    let zoom = 16;
+    if (maxRange > 1) zoom = 10;
+    else if (maxRange > 0.1) zoom = 13;
+
+    const size = "1080x1920";
+
+    const keyParam = GOOGLE_STATIC_MAPS_API_KEY
+      ? `&key=${GOOGLE_STATIC_MAPS_API_KEY}`
+      : "";
+    
+    const styleParams =
+      "&maptype=roadmap" +
+      // Nada de labels (calles, nombres, etc.)
+      "&style=feature:all|element:labels|visibility:off" +
+      // puntos de interés
+      "&style=feature:poi|visibility:off";
+
+    return `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=${size}${styleParams}${keyParam}`;
+  }, [hasInternet, zonesWithStatus]);
+
   if (zonesWithStatus.length === 0) {
     return (
       <Card>
@@ -545,9 +607,12 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
   const latRange = maxLat - minLat || 1;
   const lngRange = maxLng - minLng || 1;
 
+  const padding = 0.2;
   const project = (lat: number, lng: number) => {
-    const x = ((lng - minLng) / lngRange) * 100;
-    const y = (1 - (lat - minLat) / latRange) * 100;
+    const xNorm = (lng - minLng) / lngRange;
+    const yNorm = (lat - minLat) / latRange;
+    const x = (padding + xNorm * (1 - 2 * padding)) * 100;
+    const y = (1 - (padding + yNorm * (1 - 2 * padding))) * 100;
     return { x, y };
   };
 
@@ -556,46 +621,74 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Mapa de zonas</CardTitle>
         <CardDescription className="text-xs">
-          Cada punto representa una ESP32, con un radio aproximado de 18 m.
-          El color indica el estado de riego.
+          Arrastra el mapa para navegar. Si no hay internet se mostrará sin mapa.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="relative w-full h-[420px] bg-muted rounded-lg overflow-hidden border border-border">
-          {/* Puntos en el mapa */}
-          {zonesWithStatus.map(({ zone, status }) => {
-            const { x, y } = project(zone.latitude, zone.longitude);
-            const s = status ?? "seco";
-            const colors = STATUS_COLORS[s];
 
-            return (
-              <div
-                key={zone.id}
-                className="absolute"
-                style={{
-                  left: `${x}%`,
-                  top: `${y}%`,
-                }}
-              >
-                <div className="relative -translate-x-1/2 -translate-y-1/2">
-                  {/* Radio 18 m - representación visual */}
-                  <div
-                    className={`w-24 h-24 rounded-full ${colors.mapSoft} flex items-center justify-center`}
-                  >
+      <CardContent>
+        <div
+          className="relative w-full h-[420px] bg-muted rounded-lg overflow-hidden border border-border cursor-grab active:cursor-grabbing"
+          onMouseDown={(e) => {
+            setIsPanning(true);
+            setLastPoint({ x: e.clientX, y: e.clientY });
+          }}
+          onMouseMove={(e) => {
+            if (!isPanning || !lastPoint) return;
+            const dx = e.clientX - lastPoint.x;
+            const dy = e.clientY - lastPoint.y;
+            setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+            setLastPoint({ x: e.clientX, y: e.clientY });
+          }}
+          onMouseUp={() => {
+            setIsPanning(false);
+            setLastPoint(null);
+          }}
+          onMouseLeave={() => {
+            setIsPanning(false);
+            setLastPoint(null);
+          }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px)`,
+              backgroundImage: mapUrl ? `url(${mapUrl})` : undefined,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }}
+          >
+            {zonesWithStatus.map(({ zone, status }) => {
+              const { x, y } = project(zone.latitude, zone.longitude);
+              const s: IrrigationStatus = status ?? "seco";
+              const colors = STATUS_COLORS[s];
+
+              return (
+                <div
+                  key={zone.id}
+                  className="absolute"
+                  style={{
+                    left: `${x}%`,
+                    top: `${y}%`,
+                  }}
+                >
+                  <div className="relative -translate-x-1/2 -translate-y-1/2">
                     <div
-                      className={`w-3 h-3 rounded-full ${colors.mapSolid} shadow-md`}
-                    />
-                  </div>
-                  <div className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap text-xs bg-background/90 border border-border rounded px-1.5 py-0.5">
-                    {zone.name || zone.id}
+                      className={`w-24 h-24 rounded-full ${colors.mapSoft} flex items-center justify-center`}
+                    >
+                      <div
+                        className={`w-3 h-3 rounded-full ${colors.mapSolid} shadow-md`}
+                      />
+                    </div>
+                    <div className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap text-xs bg-background/90 border border-border rounded px-1.5 py-0.5">
+                      {zone.name || zone.id}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
-        {/* Leyenda */}
         <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2 md:grid-cols-4">
           <LegendItem color="bg-red-500" label="Seco" />
           <LegendItem color="bg-yellow-500" label="Riego (óptimo para regar)" />
