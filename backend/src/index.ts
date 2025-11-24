@@ -9,22 +9,22 @@ import * as cheerio from "cheerio";
 
 import https from "https";
 // TODO: investigar por que no funciona cargar el env con dotenv
-//import dotenv from 'dotenv';
-//dotenv.config();
+// import dotenv from "dotenv";
+// dotenv.config();
 
 type CropType = "maiz" | "trigo" | "jitomate" | "frijol";
 
 interface SensorReading {
   id: string;
-  timestamp: number;    // timestamp enviado por la ESP32
-  temperature: number;  // °C
-  moisture: number;     // %
-  receivedAt: string;   // ISO en el backend
+  timestamp: number; // timestamp enviado por la ESP32
+  temperature: number; // °C
+  moisture: number; // %
+  receivedAt: string; // ISO en el backend
 }
 
 interface DeviceConfig {
-  id: string;        // ID de la ESP32 (ej: ESP32-01)
-  name: string;      // Nombre de la zona
+  id: string; // ID de la ESP32 (ej: ESP32-01)
+  name: string; // Nombre de la zona
   latitude: number;
   longitude: number;
   crop: CropType;
@@ -44,9 +44,9 @@ const HTTP_PORT = Number(process.env.PORT) || 4000;
 // =======================
 
 const SMN_BASE_URL = "https://smn.conagua.gob.mx";
-const SMN_HOME_URL = `${SMN_BASE_URL}/es/`;
 const SMN_IMAGEN_INTERPRETADA_URL = `${SMN_BASE_URL}/es/pronosticos/pronosticossubmenu/imagen-interpretada`;
 const SMN_AGRO_URL = `${SMN_BASE_URL}/es/pronosticos/pronosticossubmenu/reporte-meteorologico-para-la-agricultura`;
+const SMN_CINTILLO_URL = `${SMN_BASE_URL}/tools/PHP/bannerAvisos.php`;
 
 const smnInsecureAgent = new https.Agent({
   rejectUnauthorized: false,
@@ -54,12 +54,9 @@ const smnInsecureAgent = new https.Agent({
 
 // Helper para pedir HTML
 async function fetchHtml(url: string): Promise<string> {
-  // Usar el agente "relajado" solo para el dominio del SMN
   const isSmnUrl = url.startsWith(SMN_BASE_URL);
 
   const res = await fetch(url, {
-    // node-fetch v3 acepta un agent para http(s)
-    // Si no es SMN, dejamos que use la config normal.
     agent: isSmnUrl ? smnInsecureAgent : undefined,
   } as any);
 
@@ -69,7 +66,6 @@ async function fetchHtml(url: string): Promise<string> {
 
   return await res.text();
 }
-
 
 // Helper para normalizar URLs de imágenes
 function resolveImageUrl(src: string | undefined | null): string {
@@ -103,8 +99,9 @@ function buildTabLabelFromText(text: string): string {
 
   const match = text.match(regex);
   if (!match) {
-    // fallback: recorta un poco el texto
-    return text.trim().slice(0, 32) + (text.length > 32 ? "..." : "");
+    const trimmed = text.trim();
+    if (!trimmed) return "";
+    return trimmed.slice(0, 32) + (trimmed.length > 32 ? "..." : "");
   }
 
   const [, diaSemanaRaw, diaRaw, mesRaw, anioRaw] = match;
@@ -121,15 +118,35 @@ function buildTabLabelFromText(text: string): string {
 // Endpoint para reporte meteorológico del SMN
 app.get("/api/weather-report", async (_req, res) => {
   try {
-    const [homeHtml, climaHtml, agroHtml] = await Promise.all([
-      fetchHtml(SMN_HOME_URL),
+    // 1) Cintillo: pedimos DIRECTAMENTE lo que pide el JS del sitio
+    let cintilloText = "";
+
+    try {
+      const cintilloHtmlRaw = await fetchHtml(SMN_CINTILLO_URL);
+
+      // Lo envolvemos para poder parsearlo con cheerio
+      const $cintillo = cheerio.load(`<div>${cintilloHtmlRaw}</div>`);
+
+      const linkTexts = $cintillo("a")
+        .map((i, el) =>
+          $cintillo(el).text().replace(/\s+/g, " ").trim()
+        )
+        .get()
+        .filter(Boolean);
+
+      cintilloText =
+        linkTexts.join(" --- ") ||
+        $cintillo("div").text().replace(/\s+/g, " ").trim();
+    } catch (cintilloErr) {
+      console.error("Error obteniendo cintillo:", cintilloErr);
+      cintilloText = "";
+    }
+
+    // 2) Imagen interpretada + 3) Mapas agro
+    const [climaHtml, agroHtml] = await Promise.all([
       fetchHtml(SMN_IMAGEN_INTERPRETADA_URL),
       fetchHtml(SMN_AGRO_URL),
     ]);
-
-    // 1) Cintillo
-    const $home = cheerio.load(homeHtml);
-    const cintilloText = $home("#cintillo").text().replace(/\s+/g, " ").trim();
 
     // 2) Imagen interpretada
     const $clima = cheerio.load(climaHtml);
@@ -137,7 +154,7 @@ app.get("/api/weather-report", async (_req, res) => {
     const climaSrc = resolveImageUrl(climaImg.attr("src"));
     const climaAlt = climaImg.attr("alt") || "Imagen interpretada";
 
-    // 3) Mapas de precipitación para cada 24 horas (5 días)
+    // 3) Mapas de la página de agricultura (índices específicos)
     const $agro = cheerio.load(agroHtml);
     const precipMaps: Array<{
       id: string;
@@ -147,15 +164,29 @@ app.get("/api/weather-report", async (_req, res) => {
       rawDateText: string;
     }> = [];
 
-    // Heurística: agarrar las imágenes de pronóstico diario (clase del ejemplo)
+    const desiredConfigs: { domIndex: number; label: string }[] = [
+      { domIndex: 1, label: "Precipitación (Hoy)" },
+      { domIndex: 9, label: "Presas (Semana)" },
+      { domIndex: 13, label: "Precipitación (Mes)" },
+      { domIndex: 17, label: "Temperatura Min" },
+      { domIndex: 18, label: "Temperatura Max" },
+    ];
+
+    const desiredIndexMap = new Map<number, { label: string; order: number }>();
+    desiredConfigs.forEach((cfg, idx) => {
+      desiredIndexMap.set(cfg.domIndex, { label: cfg.label, order: idx + 1 });
+    });
+
     $agro("img.Img_Estilo.img-responsive.img-max400").each((i, el) => {
-      if (precipMaps.length >= 5) return false; // sólo 5 días
+      const domIndex = i + 1; // i es 0-based, nosotros contamos 1-based
+      const cfg = desiredIndexMap.get(domIndex);
+      if (!cfg) return; // no es uno de los que queremos
 
       const img = $agro(el);
       const src = resolveImageUrl(img.attr("src"));
-      const alt = img.attr("alt") || "";
+      const alt = img.attr("alt") || cfg.label;
 
-      // Buscar texto cercano que suele contener "Para el viernes, 21 de ..."
+      // Buscar texto cercano (por si quieres mostrar la descripción original)
       let rawText = "";
       const parent = img.closest("p, div");
       if (parent && parent.length > 0) {
@@ -166,13 +197,11 @@ app.get("/api/weather-report", async (_req, res) => {
         if (prevP && prevP.length > 0) rawText = prevP.text().trim();
       }
 
-      const label = buildTabLabelFromText(rawText || alt || `Día ${i + 1}`);
-
       precipMaps.push({
-        id: `precip-${i + 1}`,
-        label,
+        id: `map-${cfg.order}`,   // map-1, map-2, etc.
+        label: cfg.label,         // etiqueta fija según lo que pediste
         imageUrl: src,
-        alt: alt || label,
+        alt,
         rawDateText: rawText,
       });
     });
@@ -181,7 +210,7 @@ app.get("/api/weather-report", async (_req, res) => {
       cintillo: cintilloText,
       climaMap: {
         id: "clima",
-        label: "Clima",
+        label: "Clima (Hoy)",
         imageUrl: climaSrc,
         alt: climaAlt,
         rawDateText: "",
@@ -275,9 +304,7 @@ function addReadingFromJson(line: string) {
 app.get("/api/readings", (req, res) => {
   const limit = Number(req.query.limit) || 100;
 
-  const sorted = [...readings].sort(
-    (a, b) => b.timestamp - a.timestamp
-  );
+  const sorted = [...readings].sort((a, b) => b.timestamp - a.timestamp);
   res.json(sorted.slice(0, limit));
 });
 
@@ -288,7 +315,8 @@ app.get("/api/devices", (_req, res) => {
 
 // Crear nueva zona / dispositivo
 app.post("/api/devices", (req, res) => {
-  const { id, name, latitude, longitude, crop } = req.body as Partial<DeviceConfig>;
+  const { id, name, latitude, longitude, crop } =
+    req.body as Partial<DeviceConfig>;
 
   if (!id || !name || latitude == null || longitude == null || !crop) {
     return res.status(400).json({ message: "Datos incompletos" });
@@ -314,7 +342,8 @@ app.post("/api/devices", (req, res) => {
 // Editar zona / dispositivo existente
 app.put("/api/devices/:id", (req, res) => {
   const id = req.params.id;
-  const { name, latitude, longitude, crop } = req.body as Partial<DeviceConfig>;
+  const { name, latitude, longitude, crop } =
+    req.body as Partial<DeviceConfig>;
 
   const device = devices.find((d) => d.id === id);
   if (!device) {

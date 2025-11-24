@@ -6,6 +6,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
+import Marquee from "react-fast-marquee";
+
 interface WeatherReportViewProps {
   apiBaseUrl: string;
 }
@@ -85,6 +87,12 @@ function WeatherReportView({ apiBaseUrl }: WeatherReportViewProps) {
 
   const { cintillo, climaMap, precipMaps, lastUpdated } = data;
 
+  const cintilloLabels =
+  cintillo
+    ?.split("---")
+    .map((t) => t.trim())
+    .filter(Boolean) ?? [];
+
   return (
     <Card className="w-full max-w-6xl mx-auto bg-card border border-border">
       <CardHeader>
@@ -95,8 +103,27 @@ function WeatherReportView({ apiBaseUrl }: WeatherReportViewProps) {
 
       <CardContent className="space-y-4">
         {/* Cintillo */}
-        <div className="rounded-md border bg-muted px-3 py-2 text-xs leading-relaxed max-h-24 overflow-y-auto">
-          {cintillo || "Sin información de cintillo disponible."}
+        <div className="rounded-md border bg-muted px-3 py-2 text-xs leading-relaxed overflow-hidden">
+          {cintilloLabels.length > 0 ? (
+            <Marquee
+              speed={30}          // velocidad del desplazamiento
+              pauseOnHover        // se pausa si el usuario pasa el mouse
+              gradient={false}    // sin degradado a los lados
+            >
+              {cintilloLabels.map((label, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center rounded-full bg-gray-100 border border-gray-300 px-3 py-1 text-[0.7rem] text-black mx-2"
+                >
+                  {label}
+                </span>
+              ))}
+            </Marquee>
+          ) : (
+            <span className="text-muted-foreground">
+              Sin información de cintillo disponible.
+            </span>
+          )}
         </div>
 
         <Separator />

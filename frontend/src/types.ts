@@ -91,7 +91,21 @@ export interface WeatherMap {
 
 export interface WeatherReport {
   cintillo: string;
-  climaMap: WeatherMap;
-  precipMaps: WeatherMap[];
-  lastUpdated: string | null;
+  cintilloHtml?: string;
+  climaMap: {
+    id: string;
+    label: string;
+    imageUrl: string;
+    alt: string;
+    rawDateText: string;
+  };
+  precipMaps: Array<{
+    id: string;
+    label: string;
+    imageUrl: string;
+    alt: string;
+    rawDateText: string;
+  }>;
+  lastUpdated: string;
 }
+
