@@ -34,7 +34,7 @@ void setup() {
   pinMode(MOISTURE_PIN, INPUT);
 
   // Nombre Bluetooth de la ESP32
-  if (!SerialBT.begin("ESP32-Sensors")) {
+  if (!SerialBT.begin("AquaSense-" + String(DEVICE_ID))) {
     Serial.println("Error inicializando Bluetooth SPP");
   }
 
