@@ -34,6 +34,7 @@ npm install
 3. Definir el puerto seleccionado de comunicación como variable de entorno.
 
 ```shell
+# Ejemplo: COM7
 $env:SERIAL_PORT_PATH="COM_SELECCIONADA"
 ```
 
