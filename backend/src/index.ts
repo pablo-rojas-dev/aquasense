@@ -4,6 +4,14 @@ import bodyParser from "body-parser";
 import { SerialPort } from "serialport";
 import { ReadlineParser } from "@serialport/parser-readline";
 
+import fetch from "node-fetch";
+import * as cheerio from "cheerio";
+
+import https from "https";
+// TODO: investigar por que no funciona cargar el env con dotenv
+//import dotenv from 'dotenv';
+//dotenv.config();
+
 type CropType = "maiz" | "trigo" | "jitomate" | "frijol";
 
 interface SensorReading {
@@ -31,7 +39,167 @@ app.use(bodyParser.json());
 
 const HTTP_PORT = Number(process.env.PORT) || 4000;
 
-// --- SERIAL / BLUETOOTH SPP ---
+// =======================
+//  SMN / WEATHER SCRAPING
+// =======================
+
+const SMN_BASE_URL = "https://smn.conagua.gob.mx";
+const SMN_HOME_URL = `${SMN_BASE_URL}/es/`;
+const SMN_IMAGEN_INTERPRETADA_URL = `${SMN_BASE_URL}/es/pronosticos/pronosticossubmenu/imagen-interpretada`;
+const SMN_AGRO_URL = `${SMN_BASE_URL}/es/pronosticos/pronosticossubmenu/reporte-meteorologico-para-la-agricultura`;
+
+const smnInsecureAgent = new https.Agent({
+  rejectUnauthorized: false,
+});
+
+// Helper para pedir HTML
+async function fetchHtml(url: string): Promise<string> {
+  // Usar el agente "relajado" solo para el dominio del SMN
+  const isSmnUrl = url.startsWith(SMN_BASE_URL);
+
+  const res = await fetch(url, {
+    // node-fetch v3 acepta un agent para http(s)
+    // Si no es SMN, dejamos que use la config normal.
+    agent: isSmnUrl ? smnInsecureAgent : undefined,
+  } as any);
+
+  if (!res.ok) {
+    throw new Error(`Error al obtener ${url}: ${res.status} ${res.statusText}`);
+  }
+
+  return await res.text();
+}
+
+
+// Helper para normalizar URLs de imágenes
+function resolveImageUrl(src: string | undefined | null): string {
+  if (!src) return "";
+  if (src.startsWith("http://") || src.startsWith("https://")) return src;
+  if (src.startsWith("/")) return `${SMN_BASE_URL}${src}`;
+  return `${SMN_BASE_URL}/${src}`;
+}
+
+// Helper para construir etiqueta del tab a partir del texto descriptivo
+function buildTabLabelFromText(text: string): string {
+  // Esperamos algo tipo: "Para el viernes, 21 de noviembre de 2025 (GFS)"
+  const months: Record<string, string> = {
+    enero: "ene",
+    febrero: "feb",
+    marzo: "mar",
+    abril: "abr",
+    mayo: "may",
+    junio: "jun",
+    julio: "jul",
+    agosto: "ago",
+    septiembre: "sep",
+    setiembre: "sep",
+    octubre: "oct",
+    noviembre: "nov",
+    diciembre: "dic",
+  };
+
+  const regex =
+    /para el\s+([a-záéíóúñ]+)[,]?\s+(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+de\s+(\d{4})/i;
+
+  const match = text.match(regex);
+  if (!match) {
+    // fallback: recorta un poco el texto
+    return text.trim().slice(0, 32) + (text.length > 32 ? "..." : "");
+  }
+
+  const [, diaSemanaRaw, diaRaw, mesRaw, anioRaw] = match;
+  const diaSemana =
+    diaSemanaRaw.charAt(0).toUpperCase() +
+    diaSemanaRaw.slice(1).toLowerCase();
+  const dia = diaRaw;
+  const mesKey = mesRaw.toLowerCase();
+  const mesCorto = months[mesKey] ?? mesKey.slice(0, 3);
+
+  return `${diaSemana}-${dia}/${mesCorto}/${anioRaw}`;
+}
+
+// Endpoint para reporte meteorológico del SMN
+app.get("/api/weather-report", async (_req, res) => {
+  try {
+    const [homeHtml, climaHtml, agroHtml] = await Promise.all([
+      fetchHtml(SMN_HOME_URL),
+      fetchHtml(SMN_IMAGEN_INTERPRETADA_URL),
+      fetchHtml(SMN_AGRO_URL),
+    ]);
+
+    // 1) Cintillo
+    const $home = cheerio.load(homeHtml);
+    const cintilloText = $home("#cintillo").text().replace(/\s+/g, " ").trim();
+
+    // 2) Imagen interpretada
+    const $clima = cheerio.load(climaHtml);
+    const climaImg = $clima("img.Img_Estilo.Img_Centrar_Formu").first();
+    const climaSrc = resolveImageUrl(climaImg.attr("src"));
+    const climaAlt = climaImg.attr("alt") || "Imagen interpretada";
+
+    // 3) Mapas de precipitación para cada 24 horas (5 días)
+    const $agro = cheerio.load(agroHtml);
+    const precipMaps: Array<{
+      id: string;
+      label: string;
+      imageUrl: string;
+      alt: string;
+      rawDateText: string;
+    }> = [];
+
+    // Heurística: agarrar las imágenes de pronóstico diario (clase del ejemplo)
+    $agro("img.Img_Estilo.img-responsive.img-max400").each((i, el) => {
+      if (precipMaps.length >= 5) return false; // sólo 5 días
+
+      const img = $agro(el);
+      const src = resolveImageUrl(img.attr("src"));
+      const alt = img.attr("alt") || "";
+
+      // Buscar texto cercano que suele contener "Para el viernes, 21 de ..."
+      let rawText = "";
+      const parent = img.closest("p, div");
+      if (parent && parent.length > 0) {
+        rawText = parent.text().trim();
+      }
+      if (!rawText) {
+        const prevP = img.parent().prevAll("p").first();
+        if (prevP && prevP.length > 0) rawText = prevP.text().trim();
+      }
+
+      const label = buildTabLabelFromText(rawText || alt || `Día ${i + 1}`);
+
+      precipMaps.push({
+        id: `precip-${i + 1}`,
+        label,
+        imageUrl: src,
+        alt: alt || label,
+        rawDateText: rawText,
+      });
+    });
+
+    res.json({
+      cintillo: cintilloText,
+      climaMap: {
+        id: "clima",
+        label: "Clima",
+        imageUrl: climaSrc,
+        alt: climaAlt,
+        rawDateText: "",
+      },
+      precipMaps,
+      lastUpdated: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error obteniendo reporte meteorológico:", error);
+    res.status(500).json({
+      error: "No se pudo obtener el reporte meteorológico del SMN.",
+    });
+  }
+});
+
+// =======================
+//   SERIAL / BLUETOOTH
+// =======================
 
 const SERIAL_PORT_PATH =
   process.env.SERIAL_PORT_PATH || "/dev/tty.SLAB_USBtoUART"; // Ajusta según tu SO
@@ -99,7 +267,9 @@ function addReadingFromJson(line: string) {
   }
 }
 
-// --- ENDPOINTS API ---
+// ===============
+//  ENDPOINTS API
+// ===============
 
 // Lecturas recientes
 app.get("/api/readings", (req, res) => {

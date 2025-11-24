@@ -80,3 +80,18 @@ export function computeIrrigationProgress(moisture: number): number {
   const clamped = Math.max(0, Math.min(100, moisture));
   return clamped;
 }
+
+export interface WeatherMap {
+  id: string;
+  label: string;
+  imageUrl: string;
+  alt?: string;
+  rawDateText?: string;
+}
+
+export interface WeatherReport {
+  cintillo: string;
+  climaMap: WeatherMap;
+  precipMaps: WeatherMap[];
+  lastUpdated: string | null;
+}

@@ -8,6 +8,7 @@ import type {
 import IrrigationPanel from "@/views/IrrigationPanel";
 import TemperatureView from "./views/TemperatureView";
 import MoistureView from "./views/MoistureView";
+import WeatherReportView from "./views/WeatherReportView";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -19,7 +20,7 @@ import { Menu } from "lucide-react";
 
 const API_BASE_URL = "http://localhost:4000";
 
-type Page = "irrigation" | "history";
+type Page = "irrigation" | "history" | "weather";
 
 function App() {
   const [readings, setReadings] = useState<SensorReading[]>([]);
@@ -126,6 +127,7 @@ function App() {
               >
                 Panel de riego
               </button>
+
               <button
                 className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors ${
                   page === "history"
@@ -135,6 +137,17 @@ function App() {
                 onClick={() => setPage("history")}
               >
                 Historial (gráficas)
+              </button>
+
+              <button
+                className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors ${
+                  page === "weather"
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted"
+                }`}
+                onClick={() => setPage("weather")}
+              >
+                Reporte meteorológico
               </button>
             </nav>
           </ScrollArea>
@@ -160,10 +173,14 @@ function App() {
             <h1 className="font-semibold">
               {page === "irrigation"
                 ? "Panel de riego"
-                : "Historial de lecturas"}
+                : page === "history"
+                ? "Historial de lecturas"
+                : "Reporte meteorológico del SMN"}
             </h1>
             <p className="text-xs text-muted-foreground">
-              Sensores ESP32 vía Bluetooth SPP
+              {page === "weather"
+                ? "Datos en vivo desde el Servicio Meteorológico Nacional de México"
+                : "Sensores ESP32 vía Bluetooth SPP"}
             </p>
           </div>
         </header>
@@ -180,7 +197,7 @@ function App() {
               availableIds={availableIds}
               onZoneSaved={fetchDevices}
             />
-          ) : (
+          ) : page === "history" ? (
             <Card className="w-full max-w-5xl mx-auto bg-card border border-border">
               <CardHeader>
                 <CardTitle className="text-2xl font-semibold">
@@ -214,6 +231,8 @@ function App() {
                 </p>
               </CardContent>
             </Card>
+          ) : (
+            <WeatherReportView apiBaseUrl={API_BASE_URL} />
           )}
         </main>
       </div>
