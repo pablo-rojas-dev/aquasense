@@ -387,7 +387,7 @@ function addReadingFromJson(line: string) {
 
 // Lecturas recientes
 app.get("/api/readings", (req, res) => {
-  const limit = Number(req.query.limit) || 100;
+  const limit = Number(req.query.limit) || readings.length;
 
   const sorted = [...readings].sort((a, b) => b.timestamp - a.timestamp);
   res.json(sorted.slice(0, limit));
