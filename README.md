@@ -17,6 +17,16 @@ git clone https://github.com/TacticalOnion/aquasense.git
 5. Conectar la ESP32 mediante puerto USB o C
 6. Cargar `aquasense.ino` en la ESP32 haciendo click en `Upload` (icono ->).
 
+## (Opcional): crear datos prueba
+1. Accede al backend
+```
+cd backend
+```
+
+2. Ejecuta el siguiente script
+```shell
+npx ts-node ./src/scripts/generateTestData.ts
+```
 
 ## 3. Inicializar backend
 1. Accede al backend.
