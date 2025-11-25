@@ -91,35 +91,25 @@ function buildAggregatedData(
 ): AggregatedPoint[] {
   const dayMs = 24 * 60 * 60 * 1000;
 
-  // 1) Nos quedamos solo con lecturas con timestamp válido
   const valid = readings.filter(
     (r) => typeof r.timestamp === "number" && r.timestamp > 0
   );
   if (!valid.length) return [];
 
-  // 2) Calculamos el rango temporal en base a los datos (histórico)
   const timestamps = valid.map((r) => r.timestamp as number);
-  const maxTs = Math.max(...timestamps); // lectura más reciente
-  const minTs = Math.min(...timestamps); // lectura más antigua
+  const maxTs = Math.max(...timestamps);
+  const minTs = Math.min(...timestamps);
 
   let windowMs: number | null = null;
-
   if (range === "week") windowMs = 7 * dayMs;
   if (range === "month") windowMs = 30 * dayMs;
   if (range === "year") windowMs = 365 * dayMs;
 
   const start = windowMs ? Math.max(maxTs - windowMs, minTs) : minTs;
 
-  // 3) Agregamos en buckets (igual que antes)
   const buckets = new Map<
     string,
-    {
-      label: string;
-      timestamp: number;
-      sumTemp: number;
-      sumMoist: number;
-      count: number;
-    }
+    { label: string; timestamp: number; sumTemp: number; sumMoist: number; count: number }
   >();
 
   for (const r of valid) {
@@ -149,7 +139,7 @@ function buildAggregatedData(
     buckets.set(key, bucket);
   }
 
-  const points: AggregatedPoint[] = Array.from(buckets.values())
+  return Array.from(buckets.values())
     .map((b) => ({
       label: b.label,
       timestamp: b.timestamp,
@@ -157,8 +147,6 @@ function buildAggregatedData(
       moisture: b.count ? b.sumMoist / b.count : 0,
     }))
     .sort((a, b) => a.timestamp - b.timestamp);
-
-  return points;
 }
 
 type RangeConfig = {
