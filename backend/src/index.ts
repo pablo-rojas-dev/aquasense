@@ -16,7 +16,7 @@ import path from "path";
 // import dotenv from "dotenv";
 // dotenv.config();
 
-type CropType = "maiz" | "trigo" | "jitomate" | "frijol";
+type CropType = null | "maiz" | "trigo" | "jitomate" | "frijol";
 
 interface SensorReading {
   id: string;
@@ -363,6 +363,18 @@ function addReadingFromJson(line: string) {
       return;
     }
 
+    // 🚀 Solo detectamos el nuevo ID, pero NO lo metemos en `devices`
+    const yaConocidoComoLectura = readings.some(
+      (r) => r.id === parsed.id
+    );
+    const yaConocidoComoZona = devices.some(
+      (d) => d.id === parsed.id
+    );
+
+    if (!yaConocidoComoLectura && !yaConocidoComoZona) {
+      console.log("Nuevo dispositivo detectado desde Serial:", parsed.id);
+    }
+
     const reading: SensorReading = {
       id: parsed.id,
       timestamp: parsed.timestamp,
@@ -372,6 +384,7 @@ function addReadingFromJson(line: string) {
     };
 
     readings.push(reading);
+
     // Evitar crecer infinito
     if (readings.length > 5000) {
       readings.shift();
@@ -384,12 +397,28 @@ function addReadingFromJson(line: string) {
 // ===============
 //  ENDPOINTS API
 // ===============
+app.get("/api/device-ids", (_req, res) => {
+  // IDs de zonas configuradas + IDs vistos en lecturas
+  const ids = Array.from(
+    new Set([
+      ...devices.map((d) => d.id),
+      ...readings.map((r) => r.id),
+    ])
+  );
+  res.json(ids);
+});
 
 // Lecturas recientes
 app.get("/api/readings", (req, res) => {
   const limit = Number(req.query.limit) || readings.length;
 
-  const sorted = [...readings].sort((a, b) => b.timestamp - a.timestamp);
+  // Ordenamos por receivedAt (lo que marca realmente cuándo llegó al backend)
+  const sorted = [...readings].sort(
+    (a, b) =>
+      new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
+  );
+
+  // Devolvemos las N lecturas más recientes (seed + en vivo)
   res.json(sorted.slice(0, limit));
 });
 

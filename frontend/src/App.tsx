@@ -76,7 +76,13 @@ function App() {
 
     for (const r of readings) {
       const current = lastById.get(r.id);
-      if (!current || r.timestamp > current.timestamp) {
+
+      const rTime = new Date(r.receivedAt).getTime();
+      const currentTime = current
+        ? new Date(current.receivedAt).getTime()
+        : 0;
+
+      if (!current || rTime > currentTime) {
         lastById.set(r.id, r);
       }
     }

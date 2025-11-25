@@ -50,7 +50,7 @@ import {
 interface IrrigationPanelProps {
   apiBaseUrl: string;
   zones: DeviceWithLastReading[];
-  availableIds: string[];
+  availableIds: string[]; // ya no se usa para el Select, pero se mantiene por compatibilidad
   onZoneSaved?: () => void;
 }
 
@@ -90,7 +90,7 @@ const STATUS_COLORS: Record<
     badge: "bg-purple-100 text-purple-800 border border-purple-200",
     progress: "bg-purple-100",
     mapSolid: "bg-purple-500",
-    mapSoft: "bg-purple-500/20 border-purple-500/40",
+    mapSoft: "bg-purple-500/40",
   },
 };
 
@@ -114,14 +114,11 @@ const GOOGLE_STATIC_MAPS_API_KEY =
 const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
   apiBaseUrl,
   zones,
-  availableIds,
   onZoneSaved,
 }) => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetMode, setSheetMode] = useState<SheetMode>("create");
-  const [, setEditingZone] = useState<DeviceWithLastReading | null>(
-    null
-  );
+  const [, setEditingZone] = useState<DeviceWithLastReading | null>(null);
 
   const [form, setForm] = useState<ZoneFormState>({
     esp32Id: "",
@@ -132,12 +129,62 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
   });
   const [saving, setSaving] = useState(false);
 
+  // IDs devueltos por el backend desde /api/device-ids
+  const [deviceIds, setDeviceIds] = useState<string[]>([]);
+
+  // Cuando se abre el sheet (create o edit), consultamos /api/device-ids
+  useEffect(() => {
+    if (!sheetOpen) return;
+
+    const fetchIds = async () => {
+      try {
+        const res = await fetch(`${apiBaseUrl}/api/device-ids`);
+        if (!res.ok) {
+          console.error("Error obteniendo device-ids:", await res.text());
+          return;
+        }
+        const ids = await res.json();
+        if (Array.isArray(ids)) {
+          setDeviceIds(
+            Array.from(
+              new Set(
+                ids.filter((id: unknown): id is string => typeof id === "string")
+              )
+            )
+          );
+        }
+      } catch (err) {
+        console.error("Error obteniendo device-ids:", err);
+      }
+    };
+
+    fetchIds();
+  }, [sheetOpen, apiBaseUrl]);
+
+  // IDs que ya tienen zona configurada
+  const configuredIds = useMemo(
+    () =>
+      new Set(
+        zones
+          .filter((z) => z.name && z.crop)
+          .map((z) => z.id)
+      ),
+    [zones]
+  );
+
+  // IDs disponibles para seleccionar en modo "create":
+  // todos los deviceIds menos los que ya están en zones
+  const selectableIds = useMemo(
+    () => deviceIds.filter((id) => !configuredIds.has(id)),
+    [deviceIds, configuredIds]
+  );
+
   // Abrir en modo agregar
   const openCreate = () => {
     setSheetMode("create");
     setEditingZone(null);
     setForm({
-      esp32Id: availableIds[0] ?? "",
+      esp32Id: "",
       name: "",
       latitude: "",
       longitude: "",
@@ -160,18 +207,20 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
     setSheetOpen(true);
   };
 
-  // Si cambian availableIds y estamos en create sin ID, selecciona el primero
+  // En modo create, cuando haya IDs seleccionables y aún no se haya elegido uno,
+  // asignamos automáticamente el primero.
   useEffect(() => {
-    if (sheetMode === "create" && !form.esp32Id && availableIds.length > 0) {
-      setForm((prev) => ({ ...prev, esp32Id: availableIds[0] }));
+    if (
+      sheetMode === "create" &&
+      !form.esp32Id &&
+      selectableIds.length > 0
+    ) {
+      setForm((prev) => ({ ...prev, esp32Id: selectableIds[0] }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableIds]);
+  }, [sheetMode, selectableIds]);
 
-  const handleFormChange = (
-    field: keyof ZoneFormState,
-    value: string
-  ) => {
+  const handleFormChange = (field: keyof ZoneFormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -220,10 +269,7 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
       if (!z.lastReading) {
         return { zone: z, status: null as IrrigationStatus | null };
       }
-      const status = computeIrrigationStatus(
-        z.crop,
-        z.lastReading.moisture
-      );
+      const status = computeIrrigationStatus(z.crop, z.lastReading.moisture);
       return { zone: z, status };
     });
   }, [zones]);
@@ -272,8 +318,8 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
                 : "Editar ESP32 / zona"}
             </SheetTitle>
             <SheetDescription>
-              Configura el nombre de la zona, su ubicación y el cultivo
-              asociado a la ESP32.
+              Configura el nombre de la zona, su ubicación y el cultivo asociado
+              a la ESP32.
             </SheetDescription>
           </SheetHeader>
 
@@ -292,12 +338,16 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
                   <SelectValue placeholder="Selecciona el ID de la ESP32" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableIds.length === 0 ? (
+                  {sheetMode === "edit" ? (
+                    <SelectItem value={form.esp32Id}>
+                      {form.esp32Id}
+                    </SelectItem>
+                  ) : selectableIds.length === 0 ? (
                     <SelectItem value="__none" disabled>
-                      No hay ESP32 detectadas aún
+                      No hay ESP32 disponibles para agregar
                     </SelectItem>
                   ) : (
-                    availableIds.map((id) => (
+                    selectableIds.map((id) => (
                       <SelectItem key={id} value={id}>
                         {id}
                       </SelectItem>
@@ -306,7 +356,8 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Los IDs provienen de las lecturas enviadas por las ESP32.
+                Los IDs provienen del endpoint <code>/api/device-ids</code> y
+                solo se muestran los que aún no tienen una zona configurada.
               </p>
             </div>
 
