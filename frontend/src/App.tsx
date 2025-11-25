@@ -8,7 +8,7 @@ import type {
 import IrrigationPanel from "@/views/IrrigationPanel";
 import TemperatureView from "./views/TemperatureView";
 import MoistureView from "./views/MoistureView";
-import WeatherReportView from "./views/WeatherReportView";
+import WeatherReportPanel from "./views/WeatherReportPanel";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -232,7 +232,7 @@ function App() {
               </CardContent>
             </Card>
           ) : (
-            <WeatherReportView apiBaseUrl={API_BASE_URL} />
+            <WeatherReportPanel apiBaseUrl={API_BASE_URL} />
           )}
         </main>
       </div>

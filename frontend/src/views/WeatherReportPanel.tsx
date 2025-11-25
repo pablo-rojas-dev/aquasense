@@ -1,22 +1,59 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { WeatherReport } from "@/types";
+
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
 import Marquee from "react-fast-marquee";
 
-interface WeatherReportViewProps {
+interface WeatherReportPanelProps {
   apiBaseUrl: string;
 }
 
-function WeatherReportView({ apiBaseUrl }: WeatherReportViewProps) {
+function WeatherReportPanel({ apiBaseUrl }: WeatherReportPanelProps) {
   const [data, setData] = useState<WeatherReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("clima");
+  
+  const tabsScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollTabs = (direction: "left" | "right") => {
+    if (!tabsScrollRef.current) return;
+
+    // Radix ScrollArea pone el viewport con este data-atributo
+    const viewport = tabsScrollRef.current.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    ) as HTMLDivElement | null;
+
+    if (!viewport) return;
+
+    const amount = 160; // píxeles por click
+    const delta = direction === "left" ? -amount : amount;
+
+    viewport.scrollBy({ left: delta, behavior: "smooth" });
+  };
+
+  const handleWheelTabs: React.WheelEventHandler<HTMLDivElement> = (event) => {
+    if (!tabsScrollRef.current) return;
+
+    const viewport = tabsScrollRef.current.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    ) as HTMLDivElement | null;
+
+    if (!viewport) return;
+
+    // Convertir scroll vertical del mouse en scroll horizontal
+    if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+      event.preventDefault();
+      viewport.scrollLeft += event.deltaY;
+    }
+  };
 
   useEffect(() => {
     const fetchWeatherReport = async () => {
@@ -135,19 +172,58 @@ function WeatherReportView({ apiBaseUrl }: WeatherReportViewProps) {
             onValueChange={setActiveTab}
             className="w-full"
           >
-            <ScrollArea className="w-full whitespace-nowrap rounded-md border bg-muted/40">
-              <TabsList className="flex w-max px-2">
-                <TabsTrigger value="clima" className="px-4">
-                  {climaMap.label ?? "Clima"}
-                </TabsTrigger>
+            <div className="flex items-center justify-center gap-2">
+              {/* Flecha izquierda */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => scrollTabs("left")}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
 
-                {precipMaps.map((m) => (
-                  <TabsTrigger key={m.id} value={m.id} className="px-4">
-                    {m.label}
+              {/* Área scrolleable de tabs */}
+              <ScrollArea
+                ref={tabsScrollRef}
+                className="w-fit whitespace-nowrap rounded-md border bg-muted/40 overflow-x-auto scroll-hide"
+                onWheel={handleWheelTabs}
+              >
+                <TabsList className="flex w-max px-2 flex-nowrap gap-1">
+                  <TabsTrigger
+                    value="clima"
+                    className="px-4 shrink-0"
+                  >
+                    {climaMap.label ?? "Clima"}
                   </TabsTrigger>
-                ))}
-              </TabsList>
-            </ScrollArea>
+
+                  {precipMaps.map((m) => (
+                    <TabsTrigger
+                      key={m.id}
+                      value={m.id}
+                      className="px-4 shrink-0"
+                    >
+                      {m.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+
+                {/* Scrollbar horizontal opcional */}
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+
+              {/* Flecha derecha */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => scrollTabs("right")}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
 
             {/* Mapa 1: Imagen interpretada */}
             <TabsContent value="clima" className="mt-4">
@@ -212,4 +288,4 @@ function WeatherReportView({ apiBaseUrl }: WeatherReportViewProps) {
   );
 }
 
-export default WeatherReportView;
+export default WeatherReportPanel;
