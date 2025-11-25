@@ -214,7 +214,7 @@ function DeviceLiveCharts({ device, readings }: DeviceLiveChartsProps) {
                     <Line
                       type="monotone"
                       dataKey="temperature"
-                      stroke="hsl(var(--primary))"
+                      stroke="#ff8904"
                       strokeWidth={2}
                       dot={false}
                       isAnimationActive={false}
@@ -292,7 +292,7 @@ function DeviceLiveCharts({ device, readings }: DeviceLiveChartsProps) {
                     <Line
                       type="monotone"
                       dataKey="moisture"
-                      stroke="#16a34a"
+                      stroke="#155dfc"
                       strokeWidth={2}
                       dot={false}
                       isAnimationActive={false}

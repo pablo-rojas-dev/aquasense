@@ -230,7 +230,7 @@ function RangeCharts({
                     type="monotone"
                     dataKey="temperature"
                     name="Temperatura"
-                    stroke="hsl(var(--primary))"
+                    stroke="#ff8904"
                     strokeWidth={2}
                     dot={{ r: 2 }}
                     isAnimationActive={false}
@@ -280,7 +280,7 @@ function RangeCharts({
                     type="monotone"
                     dataKey="moisture"
                     name="Humedad"
-                    stroke="#16a34a"
+                    stroke="#155dfc"
                     strokeWidth={2}
                     dot={{ r: 2 }}
                     isAnimationActive={false}
