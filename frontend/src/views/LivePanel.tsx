@@ -402,7 +402,7 @@ export default function LivePanel({ readings, devices }: LivePanelProps) {
             {/* Área scrolleable de tabs */}
             <ScrollArea
               ref={tabsScrollRef}
-              className="w-full whitespace-nowrap rounded-md border bg-muted/40 overflow-x-auto scroll-hide"
+              className="w-fit whitespace-nowrap rounded-md border bg-muted/40 overflow-x-auto scroll-hide"
               onWheel={handleWheelTabs}
             >
               <TabsList className="flex w-max px-2 flex-nowrap gap-1">
