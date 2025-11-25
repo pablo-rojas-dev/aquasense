@@ -570,6 +570,8 @@ const CardView: React.FC<CardViewProps> = ({
 
 // --- MapView ---
 
+// --- MapView ---
+
 interface MapViewProps {
   zonesWithStatus: {
     zone: DeviceWithLastReading;
@@ -738,6 +740,20 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
     return { x, y };
   };
 
+  // --- Cálculo del radio equivalente a 18 m en píxeles para el zoom actual ---
+  const RADIUS_METERS = 18;
+  const METERS_PER_DEG_LAT = 111_320; // aproximado
+  const radiusDeg = RADIUS_METERS / METERS_PER_DEG_LAT;
+
+  const radiusPx =
+    span.latSpan > 0 && containerSize.height > 0
+      ? (radiusDeg / span.latSpan) * containerSize.height
+      : 0;
+
+  // Opcional: tamaño mínimo para que no desaparezca completamente
+  const minRadiusPx = 6;
+  const visualRadiusPx = Math.max(radiusPx, minRadiusPx);
+
   return (
     <Card className="overflow-hidden">
       <CardHeader className="pb-3">
@@ -837,11 +853,17 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
                   }}
                 >
                   <div className="relative -translate-x-1/2 -translate-y-1/2">
+                    {/* Radio físico de ~18 m (escala con el zoom) */}
                     <div
-                      className={`w-24 h-24 rounded-full ${colors.mapSoft} flex items-center justify-center`}
+                      className={`rounded-full ${colors.mapSoft} flex items-center justify-center`}
+                      style={{
+                        width: visualRadiusPx * 2,
+                        height: visualRadiusPx * 2,
+                      }}
                     >
                       <div
-                        className={`w-3 h-3 rounded-full ${colors.mapSolid} shadow-md`}
+                        className={`rounded-full ${colors.mapSolid} shadow-md`}
+                        style={{ width: 6, height: 6 }}
                       />
                     </div>
                     <div className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap text-xs bg-background/90 border border-border rounded px-1.5 py-0.5">
