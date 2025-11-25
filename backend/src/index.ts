@@ -8,6 +8,10 @@ import fetch from "node-fetch";
 import * as cheerio from "cheerio";
 
 import https from "https";
+
+import fs from "fs";
+import path from "path";
+
 // TODO: investigar por que no funciona cargar el env con dotenv
 // import dotenv from "dotenv";
 // dotenv.config();
@@ -30,8 +34,89 @@ interface DeviceConfig {
   crop: CropType;
 }
 
+// Seed data interfaces (para generar datos de prueba)
+interface SeedDevice {
+  esp32Id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  crop: CropType;
+}
+
+interface SeedReading {
+  id: string;
+  timestamp: number;
+  temperature: number;
+  moisture: number;
+}
+
+interface SeedFile {
+  devices: SeedDevice[];
+  readings: SeedReading[];
+}
+
 const readings: SensorReading[] = [];
 const devices: DeviceConfig[] = [];
+
+const SEED_FILE_PATH =
+  process.env.SEED_FILE_PATH ||
+  path.join(__dirname, "..", "test-data.json");
+
+function loadSeedData() {
+  try {
+    if (!fs.existsSync(SEED_FILE_PATH)) {
+      console.warn(
+        "[seed] No se encontró test-data.json, iniciando con DB vacía.",
+        SEED_FILE_PATH
+      );
+      return;
+    }
+
+    const raw = fs.readFileSync(SEED_FILE_PATH, "utf8");
+    const parsed = JSON.parse(raw) as SeedFile;
+
+    if (Array.isArray(parsed.devices)) {
+      parsed.devices.forEach((sd) => {
+        // Evitar duplicados por si recargan en caliente
+        if (devices.some((d) => d.id === sd.esp32Id)) return;
+
+        const device: DeviceConfig = {
+          id: sd.esp32Id,
+          name: sd.name,
+          latitude: Number(sd.latitude),
+          longitude: Number(sd.longitude),
+          crop: sd.crop,
+        };
+        devices.push(device);
+      });
+    }
+
+    if (Array.isArray(parsed.readings)) {
+      parsed.readings.forEach((sr) => {
+        // Evitar crecer infinito si ya hay datos
+        if (readings.length > 5000) return;
+
+        const reading: SensorReading = {
+          id: sr.id,
+          timestamp: sr.timestamp,
+          temperature: sr.temperature,
+          moisture: sr.moisture,
+          // Para datos históricos usamos el timestamp del sensor
+          receivedAt: new Date(sr.timestamp).toISOString(),
+        };
+        readings.push(reading);
+      });
+    }
+
+    console.log(
+      `[seed] Cargados ${devices.length} dispositivos y ${readings.length} lecturas desde test-data.json`
+    );
+  } catch (err) {
+    console.error("[seed] Error cargando test-data.json:", err);
+  }
+}
+
+loadSeedData();
 
 const app = express();
 app.use(cors());
@@ -168,8 +253,8 @@ app.get("/api/weather-report", async (_req, res) => {
       { domIndex: 1, label: "Precipitación (Hoy)" },
       { domIndex: 9, label: "Presas (Semana)" },
       { domIndex: 13, label: "Precipitación (Mes)" },
-      { domIndex: 17, label: "Temperatura Min" },
-      { domIndex: 18, label: "Temperatura Max" },
+      { domIndex: 17, label: "Temperatura Max" },
+      { domIndex: 18, label: "Temperatura Min" },
     ];
 
     const desiredIndexMap = new Map<number, { label: string; order: number }>();
