@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type { SensorReading, DeviceConfig, CropType } from "@/types";
 
 import {
@@ -14,6 +14,10 @@ import {
   CardContent,
   CardDescription,
 } from "@/components/ui/card";
+
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import {
   ResponsiveContainer,
@@ -137,8 +141,8 @@ function DeviceLiveCharts({ device, readings }: DeviceLiveChartsProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-2 md:flex-row md:items-center md:justify-between flex-col">
+        <div className="text-left w-full md:w-auto">
           <p className="text-sm font-medium">{device.name}</p>
           <p className="text-xs text-muted-foreground">
             Cultivo: {cropLabel[device.crop]} · Dispositivo: {device.id}
@@ -146,7 +150,7 @@ function DeviceLiveCharts({ device, readings }: DeviceLiveChartsProps) {
         </div>
 
         {last && (
-          <div className="text-xs md:text-sm text-right">
+          <div className="text-left w-full md:w-auto md:text-right text-xs md:text-sm">
             <div>
               Temp:{" "}
               <span className="font-semibold">
@@ -205,11 +209,9 @@ function DeviceLiveCharts({ device, readings }: DeviceLiveChartsProps) {
                       }
                       labelFormatter={(label) => `Hora: ${label}`}
                     />
-                    {/* Área bajo la curva (gráfico sigue siendo LineChart) */}
                     <ReferenceArea
                       y1={0}
                       y2={0}
-                      // Sólo para mantener compatibilidad, el "relleno" lo hace la línea con strokeOpacity
                     />
                     <Line
                       type="monotone"
@@ -218,7 +220,6 @@ function DeviceLiveCharts({ device, readings }: DeviceLiveChartsProps) {
                       strokeWidth={2}
                       dot={false}
                       isAnimationActive={false}
-                      // Simulación de área: aumentamos la opacidad por debajo de la línea
                       fill="hsl(var(--primary))"
                       fillOpacity={0.15}
                     />
@@ -263,7 +264,6 @@ function DeviceLiveCharts({ device, readings }: DeviceLiveChartsProps) {
                       labelFormatter={(label) => `Hora: ${label}`}
                     />
 
-                    {/* Áreas de referencia para cada estado: seco, riego, ideal, exceso */}
                     {moistureStates.map((state, index) => (
                       <ReferenceArea
                         key={state.label}
@@ -320,6 +320,38 @@ function DeviceLiveCharts({ device, readings }: DeviceLiveChartsProps) {
 }
 
 export default function LivePanel({ readings, devices }: LivePanelProps) {
+  const tabsScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollTabs = (direction: "left" | "right") => {
+    if (!tabsScrollRef.current) return;
+
+    const viewport = tabsScrollRef.current.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    ) as HTMLDivElement | null;
+
+    if (!viewport) return;
+
+    const amount = 160;
+    const delta = direction === "left" ? -amount : amount;
+
+    viewport.scrollBy({ left: delta, behavior: "smooth" });
+  };
+
+  const handleWheelTabs: React.WheelEventHandler<HTMLDivElement> = (event) => {
+    if (!tabsScrollRef.current) return;
+
+    const viewport = tabsScrollRef.current.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    ) as HTMLDivElement | null;
+
+    if (!viewport) return;
+
+    if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+      event.preventDefault();
+      viewport.scrollLeft += event.deltaY;
+    }
+  };
+
   if (!devices.length) {
     return (
       <Card className="w-full max-w-5xl mx-auto bg-card border border-border">
@@ -355,17 +387,49 @@ export default function LivePanel({ readings, devices }: LivePanelProps) {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue={defaultId} className="w-full">
-          <TabsList className="mb-4 flex flex-wrap gap-2">
-            {devices.map((device) => (
-              <TabsTrigger
-                key={device.id}
-                value={device.id}
-                className="text-xs md:text-sm"
-              >
-                {device.id}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="mb-4 flex items-center justify-center gap-2">
+            {/* Flecha izquierda */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => scrollTabs("left")}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+
+            {/* Área scrolleable de tabs */}
+            <ScrollArea
+              ref={tabsScrollRef}
+              className="w-full whitespace-nowrap rounded-md border bg-muted/40 overflow-x-auto scroll-hide"
+              onWheel={handleWheelTabs}
+            >
+              <TabsList className="flex w-max px-2 flex-nowrap gap-1">
+                {devices.map((device) => (
+                  <TabsTrigger
+                    key={device.id}
+                    value={device.id}
+                    className="px-4 text-xs md:text-sm shrink-0"
+                  >
+                    {device.id}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+
+            {/* Flecha derecha */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => scrollTabs("right")}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
 
           {devices.map((device) => (
             <TabsContent key={device.id} value={device.id}>
