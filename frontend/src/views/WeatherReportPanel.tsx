@@ -130,6 +130,12 @@ function WeatherReportPanel({ apiBaseUrl }: WeatherReportPanelProps) {
     .map((t) => t.trim())
     .filter(Boolean) ?? [];
 
+  const imageSrc = climaMap.imageUrl
+  ? `${apiBaseUrl}/api/weather-image?url=${encodeURIComponent(
+      climaMap.imageUrl
+    )}`
+  : undefined;
+
   return (
     <Card className="w-full max-w-6xl mx-auto bg-card border border-border">
       <CardHeader>
@@ -230,7 +236,7 @@ function WeatherReportPanel({ apiBaseUrl }: WeatherReportPanelProps) {
               <div className="flex justify-center">
                 <div className="bg-white border border-border rounded-2xl shadow-sm p-3">
                   <img
-                    src={climaMap.imageUrl}
+                    src={imageSrc}
                     alt={climaMap.alt || "Mapa de clima"}
                     className="max-h-[520px] w-auto object-contain"
                     loading="lazy"

@@ -8,6 +8,7 @@ import fetch from "node-fetch";
 import * as cheerio from "cheerio";
 
 import https from "https";
+import axios from "axios";
 
 import fs from "fs";
 import path from "path";
@@ -155,8 +156,19 @@ async function fetchHtml(url: string): Promise<string> {
 // Helper para normalizar URLs de imágenes
 function resolveImageUrl(src: string | undefined | null): string {
   if (!src) return "";
-  if (src.startsWith("http://") || src.startsWith("https://")) return src;
+
+  // Normalizar URLs absolutas del SMN
+  if (src.startsWith("http://")) {
+    // Fuerza siempre https
+    return src.replace(/^http:\/\//, "https://");
+  }
+
+  if (src.startsWith("https://")) return src;
+
+  // Rutas absolutas del sitio (empiezan con "/")
   if (src.startsWith("/")) return `${SMN_BASE_URL}${src}`;
+
+  // Rutas relativas
   return `${SMN_BASE_URL}/${src}`;
 }
 
@@ -397,6 +409,33 @@ function addReadingFromJson(line: string) {
 // ===============
 //  ENDPOINTS API
 // ===============
+// Agent que no verifica el certificado SSL (para el SMN)
+const insecureAgent = new https.Agent({ rejectUnauthorized: false });
+
+app.get("/api/weather-image", async (req, res) => {
+  try {
+    const url = req.query.url as string | undefined;
+    if (!url) {
+      return res.status(400).send("Missing url param");
+    }
+
+    const response = await axios.get(url, {
+      responseType: "arraybuffer",
+      httpsAgent: insecureAgent,
+    });
+
+    const contentType =
+      (response.headers["content-type"] as string | undefined) ||
+      "image/jpeg";
+
+    res.setHeader("Content-Type", contentType);
+    res.send(response.data);
+  } catch (err) {
+    console.error("Error fetching weather image:", err);
+    res.status(500).send("Error fetching image");
+  }
+});
+
 app.get("/api/device-ids", (_req, res) => {
   // IDs de zonas configuradas + IDs vistos en lecturas
   const ids = Array.from(
