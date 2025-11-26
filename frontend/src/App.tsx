@@ -107,7 +107,14 @@ function App() {
         <div className="h-full flex flex-col">
           <div className="px-4 py-4 border-b border-border flex items-center justify-between md:justify-start gap-2">
             <span className="font-semibold text-lg">
-              AquaSense Dashboard
+              <div className="flex items-center justify-center gap-2">
+                <img
+                  src="/aquasense.svg"
+                  alt="AquaSense Logo"
+                  className="h-8 w-8"
+                />
+                AquaSense
+              </div>
             </span>
             <Button
               variant="ghost"
@@ -122,7 +129,7 @@ function App() {
           <ScrollArea className="flex-1">
             <nav className="py-4 space-y-1">
               <button
-                className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors ${
+                className={`w-full text-left px-4 py-2 text-lg font-medium transition-colors ${
                   page === "irrigation"
                     ? "bg-primary text-primary-foreground"
                     : "hover:bg-muted"
@@ -133,7 +140,7 @@ function App() {
               </button>
 
               <button
-                className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors ${
+                className={`w-full text-left px-4 py-2 text-lg font-medium transition-colors ${
                   page === "live"
                     ? "bg-primary text-primary-foreground"
                     : "hover:bg-muted"
@@ -144,7 +151,7 @@ function App() {
               </button>
 
               <button
-                className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors ${
+                className={`w-full text-left px-4 py-2 text-lg font-medium transition-colors ${
                   page === "reports"
                     ? "bg-primary text-primary-foreground"
                     : "hover:bg-muted"
@@ -155,7 +162,7 @@ function App() {
               </button>
 
               <button
-                className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors ${
+                className={`w-full text-left px-4 py-2 text-lg font-medium transition-colors ${
                   page === "weather"
                     ? "bg-primary text-primary-foreground"
                     : "hover:bg-muted"
@@ -166,10 +173,6 @@ function App() {
               </button>
             </nav>
           </ScrollArea>
-
-          <div className="px-4 py-3 border-t border-border text-xs text-muted-foreground">
-            ESP32 · React+Vite · shadcn/ui · Recharts
-          </div>
         </div>
       </aside>
 

@@ -70,27 +70,27 @@ const STATUS_COLORS: Record<
 > = {
   seco: {
     badge: "bg-red-100 text-red-800 border border-red-200",
-    progress: "bg-red-100",
-    mapSolid: "bg-red-500",
-    mapSoft: "bg-red-500/20 border-red-500/40",
+    progress: "bg-red-100 [&>div]:bg-red-800",
+    mapSolid: "bg-red-600",
+    mapSoft: "bg-red-600/20 border-red-600/40",
   },
   riego: {
     badge: "bg-yellow-100 text-yellow-800 border border-yellow-200",
-    progress: "bg-yellow-100",
-    mapSolid: "bg-yellow-500",
-    mapSoft: "bg-yellow-500/20 border-yellow-500/40",
+    progress: "bg-yellow-100 [&>div]:bg-yellow-800",
+    mapSolid: "bg-yellow-600",
+    mapSoft: "bg-yellow-600/20 border-yellow-600/40",
   },
   ideal: {
     badge: "bg-blue-100 text-blue-800 border border-blue-200",
-    progress: "bg-blue-100",
-    mapSolid: "bg-blue-500",
-    mapSoft: "bg-blue-500/20 border-blue-500/40",
+    progress: "bg-blue-100 [&>div]:bg-blue-800",
+    mapSolid: "bg-blue-600",
+    mapSoft: "bg-blue-600/20 border-blue-600/40",
   },
   exceso: {
     badge: "bg-purple-100 text-purple-800 border border-purple-200",
-    progress: "bg-purple-100",
-    mapSolid: "bg-purple-500",
-    mapSoft: "bg-purple-500/40",
+    progress: "bg-purple-100 [&>div]:bg-purple-800",
+    mapSolid: "bg-purple-600",
+    mapSoft: "bg-purple-600/20 border-purple-600/40",
   },
 };
 
@@ -310,12 +310,12 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
 
       {/* FormView en Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="space-y-4">
+        <SheetContent className="space-y-4 p-4">
           <SheetHeader>
-            <SheetTitle>
+            <SheetTitle className="bg-primary text-white text-2xl text-center mt-5 mb-2 py-2 rounded-md inline-block">
               {sheetMode === "create"
-                ? "Agregar ESP32 / zona"
-                : "Editar ESP32 / zona"}
+                ? "Agregar zona (ESP32)"
+                : "Editar zona (ESP32)"}
             </SheetTitle>
             <SheetDescription>
               Configura el nombre de la zona, su ubicación y el cultivo asociado
@@ -355,10 +355,6 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
                   )}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Los IDs provienen del endpoint <code>/api/device-ids</code> y
-                solo se muestran los que aún no tienen una zona configurada.
-              </p>
             </div>
 
             {/* Nombre de la zona */}
@@ -491,7 +487,7 @@ const CardView: React.FC<CardViewProps> = ({
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <CardTitle className="text-base">
+                  <CardTitle className="bg-primary text-lg text-white px-4 py-1 mb-1 rounded-md inline-block">
                     {zone.name || "Zona sin nombre"}
                   </CardTitle>
                   <CardDescription className="text-xs">
@@ -500,10 +496,10 @@ const CardView: React.FC<CardViewProps> = ({
                 </div>
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="icon-lg"
                   onClick={() => onEdit(zone)}
                 >
-                  <Settings className="h-4 w-4" />
+                  <Settings className="h-6! w-6!" />
                 </Button>
               </div>
             </CardHeader>
