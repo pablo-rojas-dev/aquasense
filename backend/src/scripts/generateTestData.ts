@@ -37,76 +37,58 @@ const NOW_DATE = new Date(today.getFullYear(), today.getMonth(), today.getDate()
 // 2 lecturas por día (ejemplo: 08:00 y 16:00)
 const READING_HOURS = [8, 16];
 
-// Posición base (ejemplo CDMX)
-const LAT_START = 19.4326;
-const LON_START = -99.1332;
+// Posición base
+const LAT_START = 32.52530407204027;
+const LON_START = -117.01778811187457;
 
-// Dispositivos (similar a tu test-data actual)
-const devices: SeedDevice[] = [
-  {
-    esp32Id: "ESP32-02",
-    name: "Zona - B",
-    latitude: LAT_START,
-    longitude: LON_START,
-    crop: "maiz",
-  },
-  {
-    esp32Id: "ESP32-03",
-    name: "Zona - C",
-    latitude: LAT_START + 0.001,
-    longitude: LON_START + 0.001,
-    crop: "trigo",
-  },
-  {
-    esp32Id: "ESP32-04",
-    name: "Zona - D",
-    latitude: LAT_START + 0.002,
-    longitude: LON_START + 0.002,
-    crop: "jitomate",
-  },
-  {
-    esp32Id: "ESP32-05",
-    name: "Zona - E",
-    latitude: LAT_START + 0.003,
-    longitude: LON_START + 0.003,
-    crop: "frijol",
-  },
-  {
-    esp32Id: "ESP32-06",
-    name: "Zona - F",
-    latitude: LAT_START + 0.004,
-    longitude: LON_START + 0.004,
-    crop: "maiz",
-  },
-  {
-    esp32Id: "ESP32-07",
-    name: "Zona - G",
-    latitude: LAT_START + 0.005,
-    longitude: LON_START + 0.005,
-    crop: "trigo",
-  },
-  {
-    esp32Id: "ESP32-08",
-    name: "Zona - H",
-    latitude: LAT_START + 0.006,
-    longitude: LON_START + 0.006,
-    crop: "jitomate",
-  },
-  {
-    esp32Id: "ESP32-09",
-    name: "Zona - I",
-    latitude: LAT_START + 0.007,
-    longitude: LON_START + 0.007,
-    crop: "frijol",
-  },
-  {
-    esp32Id: "ESP32-10",
-    name: "Zona - J",
-    latitude: LAT_START + 0.008,
-    longitude: LON_START + 0.008,
-    crop: "maiz",
-  },
-];
+// Dispositivos
+// Parámetros de cobertura
+const POINT_RADIUS_M = 18;      // radio de cobertura de cada punto (metros)
+const RING_RADIUS_M = 25;       // radio del anillo (metros)
+
+// Conversión aproximada metros <-> grados
+const METERS_PER_DEG_LAT = 111_320; // aprox
+function metersPerDegLon(lat: number): number {
+  return 111_320 * Math.cos((lat * Math.PI) / 180);
+}
+
+// Desplazar una posición lat/lon una cierta distancia en metros y un ángulo (rad)
+function offsetLatLon(
+  lat0: number,
+  lon0: number,
+  distanceM: number,
+  bearingRad: number
+): { lat: number; lon: number } {
+  const dLat = (distanceM * Math.cos(bearingRad)) / METERS_PER_DEG_LAT;
+  const dLon = (distanceM * Math.sin(bearingRad)) / metersPerDegLon(lat0);
+
+  return {
+    lat: lat0 + dLat,
+    lon: lon0 + dLon,
+  };
+}
+
+// Definimos cuántos puntos necesita el anillo para no dejar huecos
+const ringCircumference = 2 * Math.PI * RING_RADIUS_M;
+const maxCenterSpacing = 2 * POINT_RADIUS_M; // 2R -> sin huecos
+const NUM_POINTS = Math.ceil(ringCircumference / maxCenterSpacing);
+
+// Rotamos cultivos alrededor del anillo
+const cropsForRing: CropType[] = ["maiz", "trigo", "jitomate", "frijol"];
+
+const devices: SeedDevice[] = Array.from({ length: NUM_POINTS }, (_, i) => {
+  const angle = (2 * Math.PI * i) / NUM_POINTS; // de 0 a 2π
+  const { lat, lon } = offsetLatLon(LAT_START, LON_START, RING_RADIUS_M, angle);
+
+  return {
+    esp32Id: `ESP32-${(i + 1).toString().padStart(2, "0")}`,
+    name: `Zona - ${String.fromCharCode(65 + i)}`, // Zona - A, B, C...
+    latitude: lat,
+    longitude: lon,
+    crop: cropsForRing[i % cropsForRing.length],
+  };
+});
+
 
 /* ==================
    🔢 UTILIDADES
