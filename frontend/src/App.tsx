@@ -201,10 +201,10 @@ function App() {
               {page === "weather"
                 ? "Datos en vivo desde el Servicio Meteorológico Nacional de México"
                 : page === "live"
-                ? "Lecturas en tiempo real de temperatura y humedad de las ESP32"
+                ? "Lecturas en tiempo real de temperatura y humedad de las estacas"
                 : page === "reports"
                 ? "Promedios semanales, mensuales y anuales de temperatura y humedad"
-                : "Sensores ESP32 vía Bluetooth SPP"}
+                : "Estacas configuradas en el terreno y sus cultivos asociados"}
             </p>
           </div>
         </header>

@@ -382,7 +382,7 @@ export default function LivePanel({ readings, devices }: LivePanelProps) {
           Panel en vivo
         </CardTitle>
         <CardDescription>
-          Datos de temperatura y humedad transmitidos en vivo por las ESP32.
+          Datos de temperatura y humedad transmitidos en vivo por las estacas.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -439,8 +439,7 @@ export default function LivePanel({ readings, devices }: LivePanelProps) {
         </Tabs>
 
         <p className="mt-4 text-xs text-muted-foreground">
-          Los datos se actualizan automáticamente cada 2 segundos desde las
-          lecturas del backend.
+          Los datos se actualizan automáticamente cada 2 segundos.
         </p>
       </CardContent>
     </Card>

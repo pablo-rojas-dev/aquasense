@@ -295,8 +295,8 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
       {/* Tabs CardView / MapView */}
       <Tabs defaultValue="cards" className="w-full">
         <TabsList className="mb-4">
-          <TabsTrigger value="cards">CardView</TabsTrigger>
-          <TabsTrigger value="map">MapView</TabsTrigger>
+          <TabsTrigger value="cards">Lista</TabsTrigger>
+          <TabsTrigger value="map">Mapa</TabsTrigger>
         </TabsList>
 
         <TabsContent value="cards">
@@ -314,19 +314,19 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
           <SheetHeader>
             <SheetTitle className="bg-primary text-white text-2xl text-center mt-5 mb-2 py-2 rounded-md inline-block">
               {sheetMode === "create"
-                ? "Agregar zona (ESP32)"
-                : "Editar zona (ESP32)"}
+                ? "Agregar zona (Estaca)"
+                : "Editar zona (Estaca)"}
             </SheetTitle>
             <SheetDescription>
               Configura el nombre de la zona, su ubicación y el cultivo asociado
-              a la ESP32.
+              a la estaca.
             </SheetDescription>
           </SheetHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* ID de la ESP32 */}
+            {/* ID de la ESP32 (Estaca) */}
             <div className="space-y-2">
-              <Label>ESP32</Label>
+              <Label>Estaca</Label>
               <Select
                 value={form.esp32Id}
                 onValueChange={(value) =>
@@ -335,7 +335,7 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
                 disabled={sheetMode === "edit"}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona el ID de la ESP32" />
+                  <SelectValue placeholder="Selecciona la estaca" />
                 </SelectTrigger>
                 <SelectContent>
                   {sheetMode === "edit" ? (
@@ -344,7 +344,7 @@ const IrrigationPanel: React.FC<IrrigationPanelProps> = ({
                     </SelectItem>
                   ) : selectableIds.length === 0 ? (
                     <SelectItem value="__none" disabled>
-                      No hay ESP32 disponibles para agregar
+                      No hay estacas disponibles para agregar
                     </SelectItem>
                   ) : (
                     selectableIds.map((id) => (
@@ -491,7 +491,7 @@ const CardView: React.FC<CardViewProps> = ({
                     {zone.name || "Zona sin nombre"}
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    ID ESP32: {zone.id}
+                    {zone.id}
                   </CardDescription>
                 </div>
                 <Button
@@ -787,8 +787,7 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Mapa de zonas</CardTitle>
         <CardDescription className="text-xs">
-          Arrastra el mapa para navegar y usa el zoom para acercar/alejar. Si
-          no hay internet se mostrará sin mapa.
+          Arrastra el mapa para navegar y usa el zoom para acercar/alejar.
         </CardDescription>
       </CardHeader>
 

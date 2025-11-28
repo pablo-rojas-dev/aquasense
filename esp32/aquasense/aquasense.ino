@@ -15,7 +15,7 @@ Adafruit_AHTX0 aht;
 #define MOISTURE_PIN 35
 
 // ID de la ESP32 (cámbialo si tienes varias placas)
-const char* DEVICE_ID = "ESP32-01";
+const char* DEVICE_ID = "ESTACA-01";
 
 const int MOISTURE_AIR_VALUE   = 4095;
 const int MOISTURE_WATER_VALUE = 1500;
@@ -59,7 +59,7 @@ void loop() {
   unsigned long ms = millis();
 
   String payload = "{";
-  payload += "\"id\":\"" + String(DEVICE_ID) + "\",";         // <-- NUEVO CAMPO ID
+  payload += "\"id\":\"" + String(DEVICE_ID) + "\",";
   payload += "\"timestamp\":" + String(ms) + ",";
   payload += "\"temperature\":" + String(temp.temperature, 2) + ",";
   payload += "\"moisture\":" + String(moisturePercent, 1);

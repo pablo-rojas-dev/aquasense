@@ -203,7 +203,7 @@ function RangeCharts({
               Temperatura promedio
             </CardTitle>
             <CardDescription className="text-xs">
-              Promedio de temperatura de todas las ESP32 ({ranges.find((r) => r.key === range)?.description})
+              Promedio de temperatura de todas las estacas ({ranges.find((r) => r.key === range)?.description})
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
@@ -248,7 +248,7 @@ function RangeCharts({
               Humedad promedio del suelo
             </CardTitle>
             <CardDescription className="text-xs">
-              Promedio de humedad de todas las ESP32 ({ranges.find((r) => r.key === range)?.description})
+              Promedio de humedad de todas las estacas ({ranges.find((r) => r.key === range)?.description})
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
@@ -295,7 +295,7 @@ function RangeCharts({
       <Separator />
 
       <p className="text-xs text-muted-foreground leading-relaxed">
-        Estos reportes promedian las lecturas de <span className="font-semibold">todas</span> las ESP32
+        Estos reportes <span className="font-semibold">promedian las lecturas de todas las estacas </span> 
         registradas en el sistema dentro del rango seleccionado (semana, mes o año).
         Los valores se muestran de izquierda a derecha en orden cronológico.
       </p>
