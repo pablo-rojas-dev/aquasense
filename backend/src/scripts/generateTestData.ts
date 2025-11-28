@@ -38,8 +38,8 @@ const NOW_DATE = new Date(today.getFullYear(), today.getMonth(), today.getDate()
 const READING_HOURS = [8, 16];
 
 // Posición base
-const LAT_START = 32.52530407204027;
-const LON_START = -117.01778811187457;
+const LAT_START = 32.52570602900089;
+const LON_START = -117.01766849875003;
 
 // Dispositivos
 // Parámetros de cobertura
