@@ -81,7 +81,7 @@ const devices: SeedDevice[] = Array.from({ length: NUM_POINTS }, (_, i) => {
   const { lat, lon } = offsetLatLon(LAT_START, LON_START, RING_RADIUS_M, angle);
 
   return {
-    esp32Id: `ESP32-${(i + 1).toString().padStart(2, "0")}`,
+    esp32Id: `ESP32-${(i + 2).toString().padStart(2, "0")}`,
     name: `Zona - ${String.fromCharCode(65 + i)}`, // Zona - A, B, C...
     latitude: lat,
     longitude: lon,
