@@ -32,7 +32,7 @@ function App() {
   useEffect(() => {
     const fetchReadings = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/readings?limit=500`);
+        const res = await fetch(`${API_BASE_URL}/api/readings?limit=5000`);
         const data: SensorReading[] = await res.json();
         setReadings(data);
       } catch (error) {
