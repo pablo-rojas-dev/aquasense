@@ -565,9 +565,6 @@ const CardView: React.FC<CardViewProps> = ({
 };
 
 // --- MapView ---
-
-// --- MapView ---
-
 interface MapViewProps {
   zonesWithStatus: {
     zone: DeviceWithLastReading;
@@ -575,10 +572,34 @@ interface MapViewProps {
   }[];
 }
 
+// Constantes para proyección Web Mercator
+const TILE_SIZE = 256;
+const EARTH_RADIUS = 6378137; // metros
+const MAX_STATIC_MAP_SIZE = 640; // límite típico de Google Static Maps (sin scale=2)
+
+function latLngToWorld(lat: number, lng: number) {
+  const sinLat = Math.sin((lat * Math.PI) / 180);
+  const x = ((lng + 180) / 360) * TILE_SIZE;
+  const y =
+    (0.5 -
+      Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) *
+    TILE_SIZE;
+  return { x, y };
+}
+
+function worldToLatLng(x: number, y: number) {
+  const lng = (x / TILE_SIZE) * 360 - 180;
+  const n = Math.PI - (2 * Math.PI * y) / TILE_SIZE;
+  const lat =
+    (180 / Math.PI) *
+    Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  return { lat, lng };
+}
+
 const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
   const [hasInternet, setHasInternet] = useState(true);
 
-  // Centro del mapa (lat, lng) y zoom de Google Maps
+  // Centro inicial del mapa
   const [center, setCenter] = useState<{ lat: number; lng: number }>(() => {
     if (zonesWithStatus.length === 0) {
       return { lat: 0, lng: 0 };
@@ -619,33 +640,18 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
     return initialZoom;
   });
 
-  // Rango visible aproximado en grados (sirve para traducir píxeles -> lat/lng)
-  const [span, setSpan] = useState<{ latSpan: number; lngSpan: number }>(() => {
-    if (zonesWithStatus.length === 0) return { latSpan: 0.1, lngSpan: 0.1 };
-
-    const latitudes = zonesWithStatus.map((z) => z.zone.latitude);
-    const longitudes = zonesWithStatus.map((z) => z.zone.longitude);
-
-    const minLat = Math.min(...latitudes);
-    const maxLat = Math.max(...latitudes);
-    const minLng = Math.min(...longitudes);
-    const maxLng = Math.max(...longitudes);
-
-    const latRange = maxLat - minLat || 0.1;
-    const lngRange = maxLng - minLng || 0.1;
-
-    return { latSpan: latRange, lngSpan: lngRange };
-  });
-
   // Panning
   const [isPanning, setIsPanning] = useState(false);
   const [lastPoint, setLastPoint] = useState<{ x: number; y: number } | null>(
     null
   );
 
-  // Tamaño del contenedor para convertir pixeles a grados
+  // Tamaño del contenedor para convertir píxeles a posiciones
   const mapRef = useRef<HTMLDivElement | null>(null);
-  const [containerSize, setContainerSize] = useState({ width: 1, height: 1 });
+  const [containerSize, setContainerSize] = useState({
+    width: 1,
+    height: 1,
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -679,24 +685,27 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
 
   const handleZoomIn = () => {
     setZoom((prev) => Math.min(prev + 1, 20));
-    setSpan((prev) => ({
-      latSpan: prev.latSpan / 1.5,
-      lngSpan: prev.lngSpan / 1.5,
-    }));
   };
 
   const handleZoomOut = () => {
     setZoom((prev) => Math.max(prev - 1, 1));
-    setSpan((prev) => ({
-      latSpan: prev.latSpan * 1.5,
-      lngSpan: prev.lngSpan * 1.5,
-    }));
   };
+
+  // Tamaño "teórico" del mapa que pedimos a Static Maps
+  const rawWidth = Math.max(1, Math.round(containerSize.width));
+  const rawHeight = Math.max(1, Math.round(containerSize.height));
+  const downscaleFactor = Math.min(
+    MAX_STATIC_MAP_SIZE / rawWidth,
+    MAX_STATIC_MAP_SIZE / rawHeight,
+    1
+  );
+  const imageWidth = Math.max(1, Math.round(rawWidth * downscaleFactor));
+  const imageHeight = Math.max(1, Math.round(rawHeight * downscaleFactor));
 
   const mapUrl = useMemo(() => {
     if (!hasInternet || zonesWithStatus.length === 0) return null;
 
-    const size = "1080x1920";
+    const size = `${imageWidth}x${imageHeight}`;
 
     const keyParam = GOOGLE_STATIC_MAPS_API_KEY
       ? `&key=${GOOGLE_STATIC_MAPS_API_KEY}`
@@ -708,7 +717,7 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
       "&style=feature:poi|visibility:off";
 
     return `https://maps.googleapis.com/maps/api/staticmap?center=${center.lat},${center.lng}&zoom=${zoom}&size=${size}${styleParams}${keyParam}`;
-  }, [hasInternet, zonesWithStatus, center, zoom]);
+  }, [hasInternet, zonesWithStatus, center, zoom, imageWidth, imageHeight]);
 
   if (zonesWithStatus.length === 0) {
     return (
@@ -720,35 +729,58 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
     );
   }
 
-  // Proyección simplificada usando el centro y el span actual
-  const project = (lat: number, lng: number) => {
-    const { latSpan, lngSpan } = span;
-    const minLat = center.lat - latSpan / 2;
-    const maxLat = center.lat + latSpan / 2;
-    const minLng = center.lng - lngSpan / 2;
-    const maxLng = center.lng + lngSpan / 2;
-
-    const xNorm = (lng - minLng) / (maxLng - minLng);
-    const yNorm = (lat - minLat) / (maxLat - minLat);
-
-    const x = xNorm * 100;
-    const y = (1 - yNorm) * 100;
-    return { x, y };
-  };
-
   // --- Cálculo del radio equivalente a 18 m en píxeles para el zoom actual ---
   const RADIUS_METERS = 18;
-  const METERS_PER_DEG_LAT = 111_320; // aproximado
-  const radiusDeg = RADIUS_METERS / METERS_PER_DEG_LAT;
+  const latRad = (center.lat * Math.PI) / 180;
+  const scale = Math.pow(2, zoom);
 
-  const radiusPx =
-    span.latSpan > 0 && containerSize.height > 0
-      ? (radiusDeg / span.latSpan) * containerSize.height
-      : 0;
+  // metros por pixel en la latitud del centro (misma fórmula que Google)
+  const metersPerPixel =
+    (Math.cos(latRad) * 2 * Math.PI * EARTH_RADIUS) /
+    (TILE_SIZE * scale);
 
-  // Opcional: tamaño mínimo para que no desaparezca completamente
+  const radiusPx = RADIUS_METERS / metersPerPixel;
   const minRadiusPx = 6;
   const visualRadiusPx = Math.max(radiusPx, minRadiusPx);
+
+  // Centro en coordenadas de mundo (Web Mercator) escaladas por el zoom
+  const centerWorld = latLngToWorld(center.lat, center.lng);
+  const centerWorldScaled = {
+    x: centerWorld.x * scale,
+    y: centerWorld.y * scale,
+  };
+
+  // --- Ajuste de cómo se dibuja la imagen dentro del contenedor (sin deformar) ---
+  const containerW = containerSize.width;
+  const containerH = containerSize.height;
+  const imageRatio = imageWidth / imageHeight;
+  const containerRatio = containerW / containerH;
+
+  let renderedWidth = containerW;
+  let renderedHeight = containerH;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  if (containerRatio > imageRatio) {
+    // El contenedor es más "apaisado": la imagen ocupa toda la altura
+    renderedHeight = containerH;
+    renderedWidth = renderedHeight * imageRatio;
+    offsetX = (containerW - renderedWidth) / 2;
+    offsetY = 0;
+  } else {
+    // El contenedor es más "alto": la imagen ocupa todo el ancho
+    renderedWidth = containerW;
+    renderedHeight = renderedWidth / imageRatio;
+    offsetX = 0;
+    offsetY = (containerH - renderedHeight) / 2;
+  }
+
+  // Factor de escala de píxel de mapa -> píxel en pantalla
+  const mapToScreenScale = renderedWidth / imageWidth;
+
+  // Centro de la imagen dentro del contenedor
+  const centerScreenX = offsetX + renderedWidth / 2;
+  const centerScreenY = offsetY + renderedHeight / 2;
 
   return (
     <Card className="overflow-hidden">
@@ -775,19 +807,26 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
 
             setLastPoint({ x: e.clientX, y: e.clientY });
 
-            // Convertir desplazamiento en píxeles a desplazamiento en lat/lng
-            const { width, height } = containerSize;
-            const { latSpan, lngSpan } = span;
+            // Convertir desplazamiento en píxeles a desplazamiento del centro
+            setCenter((prev) => {
+              const world = latLngToWorld(prev.lat, prev.lng);
+              const worldScaled = {
+                x: world.x * scale,
+                y: world.y * scale,
+              };
 
-            if (!width || !height) return;
+              const newWorldScaled = {
+                x: worldScaled.x - dx / mapToScreenScale,
+                y: worldScaled.y - dy / mapToScreenScale,
+              };
 
-            const deltaLng = (-dx / width) * lngSpan;
-            const deltaLat = (dy / height) * latSpan;
+              const newWorld = {
+                x: newWorldScaled.x / scale,
+                y: newWorldScaled.y / scale,
+              };
 
-            setCenter((prev) => ({
-              lat: prev.lat + deltaLat,
-              lng: prev.lng + deltaLng,
-            }));
+              return worldToLatLng(newWorld.x, newWorld.y);
+            });
           }}
           onMouseUp={() => {
             setIsPanning(false);
@@ -830,31 +869,49 @@ const MapView: React.FC<MapViewProps> = ({ zonesWithStatus }) => {
             className="absolute inset-0"
             style={{
               backgroundImage: mapUrl ? `url(${mapUrl})` : undefined,
-              backgroundSize: "cover",
+              // IMPORTANTE: no deformar la imagen
+              backgroundSize: "contain",
+              backgroundRepeat: "no-repeat",
               backgroundPosition: "center",
             }}
           >
             {zonesWithStatus.map(({ zone, status }) => {
-              const { x, y } = project(zone.latitude, zone.longitude);
+              const zoneWorld = latLngToWorld(
+                zone.latitude,
+                zone.longitude
+              );
+              const zoneWorldScaled = {
+                x: zoneWorld.x * scale,
+                y: zoneWorld.y * scale,
+              };
+
+              const dx = zoneWorldScaled.x - centerWorldScaled.x;
+              const dy = zoneWorldScaled.y - centerWorldScaled.y;
+
+              const left = centerScreenX + dx * mapToScreenScale;
+              const top = centerScreenY + dy * mapToScreenScale;
+
               const s: IrrigationStatus = status ?? "seco";
               const colors = STATUS_COLORS[s];
+
+              const circleDiameter = visualRadiusPx * 2 * mapToScreenScale;
 
               return (
                 <div
                   key={zone.id}
                   className="absolute"
                   style={{
-                    left: `${x}%`,
-                    top: `${y}%`,
+                    left,
+                    top,
                   }}
                 >
                   <div className="relative -translate-x-1/2 -translate-y-1/2">
-                    {/* Radio físico de ~18 m (escala con el zoom) */}
+                    {/* Radio físico de ~18 m (escala con el zoom y coincide con el mapa) */}
                     <div
                       className={`rounded-full ${colors.mapSoft} flex items-center justify-center`}
                       style={{
-                        width: visualRadiusPx * 2,
-                        height: visualRadiusPx * 2,
+                        width: circleDiameter,
+                        height: circleDiameter,
                       }}
                     >
                       <div
