@@ -1,3 +1,22 @@
+![Aquasense banner](./doc/aquasense-banner.png)
+# Aquasense
+Junto con mi mejor amigo el ing. civil [Joseph A. Murcio](https://www.linkedin.com/in/joseph-abraham-murcio-marquez-78b136296/) ganamos el **🥇1er lugar del concurso nacional de desarrollo de aplicaciones con temática del agua**. 
+
+El evento estuvo organizado por la [Asociación Mexicana de Hidráulica](https://amh.org.mx/) con sede en Tijuana. Nuestra propuesta se enfoco en el sector agronómo, ya que en México consume +70% del agua potable. Así que diseñamos un producto dirigido a los agricultores que usan la técnica de riego por inundación. 
+
+El valor que aporta **Aquasense** es que le permite al agricultor monitorear en tiempo real el nivel de humedad y temperatura mediante la instalación de módulos dentro del campo. Y en base a información tomar decisiones, ejemplo: "debo regar más esta zona", "hoy no voy a regar" o "debo cambiar de cultivo por las condiciones del terreno".  
+
+## Funcionalidades
+- Monitoreo invidual de los módulos
+- Mapa global de monitoreo
+- Histórico en tiempo real de temperatura y humedad
+- Notificación del sistema metereológico nacional
+
+## Infografía
+<p align="center">
+   <img src="./doc/aquasense-info.png" alt="Infografía del proyecto" width="300"></img>
+</p>
+
 # Ejecutar proyecto
 ## 1. Clonar proyecto
 
