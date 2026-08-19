@@ -4,6 +4,10 @@ Junto con mi mejor amigo el ing. civil [Joseph A. Murcio](https://www.linkedin.c
 
 El evento estuvo organizado por la [Asociación Mexicana de Hidráulica](https://amh.org.mx/) con sede en Tijuana. Nuestra propuesta se enfoco en el sector agronómo, ya que en México consume +70% del agua potable. Así que diseñamos un producto dirigido a los agricultores que usan la técnica de riego por inundación. 
 
+<p align="center">
+   <img src="./doc/aquasense-demo.gif" alt="Infografía del proyecto"></img>
+</p>
+
 El valor que aporta **Aquasense** es que le permite al agricultor monitorear en tiempo real el nivel de humedad y temperatura mediante la instalación de módulos dentro del campo. Y en base a información tomar decisiones, ejemplo: "debo regar más esta zona", "hoy no voy a regar" o "debo cambiar de cultivo por las condiciones del terreno".  
 
 ## Funcionalidades
